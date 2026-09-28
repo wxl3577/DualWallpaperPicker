@@ -130,7 +130,7 @@ struct ContentView: View {
 
     private var actionPanel: some View {
         VStack(spacing: 10) {
-            if let shortcutURL = Bundle.main.url(forResource: "双壁纸设置", withExtension: "shortcut") {
+            if let shortcutURL = Bundle.main.url(forResource: "DualWallpaperSetter", withExtension: "shortcut") {
                 ShareLink(item: shortcutURL) {
                     Label("首次使用：安装辅助快捷指令", systemImage: "square.and.arrow.up")
                         .frame(maxWidth: .infinity)
@@ -149,7 +149,7 @@ struct ContentView: View {
             .controlSize(.large)
             .disabled(lockWallpaper == nil || homeWallpaper == nil)
 
-            Text("应用会把两张图片地址暂存到剪贴板，再运行“双壁纸设置”快捷指令。")
+            Text("应用会把两张图片地址暂存到剪贴板，再运行“DualWallpaperSetter”快捷指令。")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -199,7 +199,7 @@ struct ContentView: View {
         var components = URLComponents()
         components.scheme = "shortcuts"
         components.host = "run-shortcut"
-        components.queryItems = [URLQueryItem(name: "name", value: "双壁纸设置")]
+        components.queryItems = [URLQueryItem(name: "name", value: "DualWallpaperSetter")]
 
         guard let url = components.url else {
             alertMessage = "无法生成快捷指令链接。"

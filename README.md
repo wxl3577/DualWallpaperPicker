@@ -15,7 +15,7 @@
 1. 从 Actions 的最新成功构建下载 Artifact，解压并侧载 `DualWallpaperPicker-unsigned.ipa`。
 2. 首次打开 App，点“首次使用：安装辅助快捷指令”，在分享菜单中用“快捷指令”打开并添加。
 3. 随机获取候选图，分别点一张“锁屏”和另一张“主屏”。
-4. 点“设置锁屏与主屏壁纸”。App 会把两个图片 URL 写入剪贴板并运行 `双壁纸设置`。
+4. 点“设置锁屏与主屏壁纸”。App 会把两个图片 URL 写入剪贴板并运行 `DualWallpaperSetter`。
 
 > iOS 的公开 SDK 不允许普通第三方 App 直接修改系统壁纸，因此实际设置由 Apple 快捷指令的“设定墙纸”动作完成。首次导入和首次运行时，iOS 可能要求用户确认权限。
 
@@ -24,7 +24,7 @@
 ```sh
 brew install xcodegen
 python3 scripts/make_icon.py
-python3 scripts/make_shortcut.py DualWallpaperPicker/Resources/双壁纸设置.shortcut
+python3 scripts/make_shortcut.py DualWallpaperPicker/Resources/DualWallpaperSetter.shortcut
 xcodegen generate
 xcodebuild -project DualWallpaperPicker.xcodeproj -scheme DualWallpaperPicker -sdk iphoneos -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build
 ```

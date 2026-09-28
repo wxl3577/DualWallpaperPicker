@@ -108,7 +108,7 @@ def build() -> dict:
 
 
 def main() -> None:
-    destination = Path(sys.argv[1] if len(sys.argv) > 1 else "DualWallpaperPicker/Resources/双壁纸设置.shortcut")
+    destination = Path(sys.argv[1] if len(sys.argv) > 1 else "DualWallpaperPicker/Resources/DualWallpaperSetter.shortcut")
     destination.parent.mkdir(parents=True, exist_ok=True)
     with destination.open("wb") as handle:
         plistlib.dump(build(), handle, fmt=plistlib.FMT_BINARY, sort_keys=False)

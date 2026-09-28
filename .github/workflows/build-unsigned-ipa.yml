@@ -25,16 +25,16 @@ jobs:
       - name: Generate helper shortcut
         run: |
           python3 scripts/make_icon.py
-          python3 scripts/make_shortcut.py "$RUNNER_TEMP/双壁纸设置-unsigned.shortcut"
+          python3 scripts/make_shortcut.py "$RUNNER_TEMP/DualWallpaperSetter-unsigned.shortcut"
           mkdir -p DualWallpaperPicker/Resources
           if shortcuts sign --mode anyone \
-            --input "$RUNNER_TEMP/双壁纸设置-unsigned.shortcut" \
-            --output "DualWallpaperPicker/Resources/双壁纸设置.shortcut"; then
+            --input "$RUNNER_TEMP/DualWallpaperSetter-unsigned.shortcut" \
+            --output "DualWallpaperPicker/Resources/DualWallpaperSetter.shortcut"; then
             echo "Signed helper shortcut for anyone."
           else
             echo "Shortcut notarization was unavailable; bundling the unsigned helper."
-            cp "$RUNNER_TEMP/双壁纸设置-unsigned.shortcut" \
-              "DualWallpaperPicker/Resources/双壁纸设置.shortcut"
+            cp "$RUNNER_TEMP/DualWallpaperSetter-unsigned.shortcut" \
+              "DualWallpaperPicker/Resources/DualWallpaperSetter.shortcut"
           fi
 
       - name: Generate Xcode project
@@ -63,7 +63,7 @@ jobs:
             exit 1
           fi
 
-          if [ ! -f "$APP_PATH/双壁纸设置.shortcut" ]; then
+          if [ ! -f "$APP_PATH/DualWallpaperSetter.shortcut" ]; then
             echo "Bundled helper shortcut was not found in the app."
             exit 1
           fi
@@ -80,7 +80,7 @@ jobs:
           name: DualWallpaperPicker-unsigned-${{ github.run_number }}
           path: |
             DualWallpaperPicker-unsigned.ipa
-            DualWallpaperPicker/Resources/双壁纸设置.shortcut
+            DualWallpaperPicker/Resources/DualWallpaperSetter.shortcut
           if-no-files-found: error
           compression-level: 0
           retention-days: 14
