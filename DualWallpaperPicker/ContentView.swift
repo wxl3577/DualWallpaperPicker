@@ -12,10 +12,6 @@ struct ContentView: View {
     @State private var alertMessage: String?
 
     private let service = WallpaperService()
-    private let columns = [
-        GridItem(.flexible(), spacing: 12),
-        GridItem(.flexible(), spacing: 12)
-    ]
 
     var body: some View {
         NavigationView {
@@ -43,7 +39,7 @@ struct ContentView: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 40)
                     } else {
-                        LazyVGrid(columns: columns, spacing: 12) {
+                        LazyVStack(spacing: 14) {
                             ForEach(wallpapers) { wallpaper in
                                 WallpaperCard(
                                     wallpaper: wallpaper,
@@ -291,8 +287,11 @@ private struct WallpaperCard: View {
                     }
                 }
             }
-            .frame(height: 230)
+            .frame(maxWidth: .infinity)
+            .frame(height: 320)
             .clipped()
+            .contentShape(Rectangle())
+            .allowsHitTesting(false)
 
             Text(wallpaper.title)
                 .font(.caption.weight(.semibold))
@@ -333,13 +332,9 @@ private struct WallpaperCard: View {
             .font(.caption)
             .padding(10)
         }
-        .background(.background)
+        .frame(maxWidth: .infinity)
+        .background(Color(uiColor: .secondarySystemGroupedBackground))
         .clipShape(RoundedRectangle(cornerRadius: 16))
-        .overlay {
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(isLock ? Color.blue : (isHome ? Color.green : Color.clear), lineWidth: 3)
-                .allowsHitTesting(false)
-        }
     }
 }
 
