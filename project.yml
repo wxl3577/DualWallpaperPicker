@@ -21,6 +21,8 @@ targets:
       path: DualWallpaperPicker/Info.plist
       properties:
         CFBundleDisplayName: "双壁纸"
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         UILaunchScreen: {}
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
