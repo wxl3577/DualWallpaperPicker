@@ -10,7 +10,7 @@ struct ContentView: View {
     @State private var isSaving = false
     @State private var alertMessage: String?
 
-    private let service = WallpaperService()
+    private let service = WallpaperService.shared
 
     var body: some View {
         NavigationView {

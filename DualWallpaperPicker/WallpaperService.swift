@@ -40,71 +40,117 @@ enum WallpaperServiceError: LocalizedError {
 }
 
 actor WallpaperService {
+    static let shared = WallpaperService()
+
     private let apiBase = URL(string: "https://claritywallpaper.com/clarity/api/")!
     private let imageBase = URL(string: "http://wallpapers.claritywallpaper.com/")!
     private let decoder = JSONDecoder()
+    private var detailCache: [String: [Wallpaper]] = [:]
 
     func randomWallpapers(count: Int) async throws -> [Wallpaper] {
         let target = max(2, min(count, 20))
-        let candidateNumbers = Array(2...1162).shuffled()
-        let maximumAttempts = min(candidateNumbers.count, max(12, target * 4))
-        var seen = Set<String>()
-        var result: [Wallpaper] = []
-        var cursor = 0
+        // About 2–3 images per category. A request for 20 images therefore
+        // normally uses eight different categories instead of only one or two.
+        let desiredCategoryCount = min(8, max(2, (target * 2 + 4) / 5))
+        var candidates = try await fetchSpecialPool(size: 80).shuffled()
+        var categoryGroups: [[Wallpaper]] = []
 
-        while result.count < target && cursor < maximumAttempts {
-            let end = min(cursor + 4, maximumAttempts)
-            let batch = Array(candidateNumbers[cursor..<end])
+        while categoryGroups.count < desiredCategoryCount && !candidates.isEmpty {
+            let requestCount = min(4, desiredCategoryCount - categoryGroups.count, candidates.count)
+            let batch = Array(candidates.prefix(requestCount))
+            candidates.removeFirst(requestCount)
+            categoryGroups.append(contentsOf: await fetchDetails(for: batch))
+        }
 
-            let batchResults = await withTaskGroup(of: [Wallpaper].self) { group in
-                for number in batch {
-                    group.addTask { [self] in
-                        (try? await fetchSpecial(number: number)) ?? []
-                    }
-                }
+        var result = balancedSample(from: categoryGroups, count: target)
 
-                var wallpapers: [Wallpaper] = []
-                for await items in group {
-                    wallpapers.append(contentsOf: items)
-                }
-                return wallpapers
-            }
-
-            for wallpaper in batchResults.shuffled() where seen.insert(wallpaper.id).inserted {
-                result.append(wallpaper)
-                if result.count == target { break }
-            }
-            cursor = end
+        // Most categories contain enough images. If an unusually small or
+        // unavailable category leaves a gap, top up in batches of at most four.
+        while result.count < target && !candidates.isEmpty {
+            let requestCount = min(4, candidates.count)
+            let batch = Array(candidates.prefix(requestCount))
+            candidates.removeFirst(requestCount)
+            categoryGroups.append(contentsOf: await fetchDetails(for: batch))
+            result = balancedSample(from: categoryGroups, count: target)
         }
 
         guard !result.isEmpty else { throw WallpaperServiceError.noWallpapers }
         return Array(result.prefix(target))
     }
 
-    private func fetchSpecial(number: Int) async throws -> [Wallpaper] {
+    private func fetchSpecialPool(size: Int) async throws -> [SpecialSummary] {
+        // The API treats `number` as a cursor. Randomizing the cursor gives us
+        // one broad, inexpensive pool request without always using newest items.
+        let cursor = Int.random(in: max(size + 2, 102)...1162)
         var query = URLComponents(url: apiBase.appendingPathComponent("special/query"), resolvingAgainstBaseURL: false)!
         query.queryItems = [
-            URLQueryItem(name: "size", value: "1"),
-            URLQueryItem(name: "number", value: String(number))
+            URLQueryItem(name: "size", value: String(size)),
+            URLQueryItem(name: "number", value: String(cursor))
         ]
 
         let (summaryData, summaryResponse) = try await URLSession.shared.data(from: query.url!)
         try validate(summaryResponse)
         let summary = try decoder.decode(APIEnvelope<[SpecialSummary]>.self, from: summaryData)
-        guard let specialID = summary.data.first?.id else { return [] }
+        return summary.data
+    }
+
+    private func fetchDetails(for summaries: [SpecialSummary]) async -> [[Wallpaper]] {
+        await withTaskGroup(of: [Wallpaper].self) { group in
+            for summary in summaries {
+                group.addTask { [self] in
+                    (try? await fetchSpecial(id: summary.id)) ?? []
+                }
+            }
+
+            var results: [[Wallpaper]] = []
+            for await wallpapers in group where !wallpapers.isEmpty {
+                results.append(wallpapers)
+            }
+            return results
+        }
+    }
+
+    private func fetchSpecial(id specialID: String) async throws -> [Wallpaper] {
+        if let cached = detailCache[specialID] {
+            return cached
+        }
 
         let detailURL = apiBase.appendingPathComponent("special/\(specialID)")
         let (detailData, detailResponse) = try await URLSession.shared.data(from: detailURL)
         try validate(detailResponse)
         let detail = try decoder.decode(APIEnvelope<SpecialDetail>.self, from: detailData).data
 
-        return (detail.pictureList ?? []).compactMap { picture in
+        let wallpapers = (detail.pictureList ?? []).compactMap { picture in
             guard let url = URL(string: picture.url, relativeTo: imageBase)?.absoluteURL else { return nil }
             let title = [picture.title, picture.titleEn, detail.headline]
                 .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
                 .first(where: { !$0.isEmpty }) ?? "克拉壁纸"
             return Wallpaper(id: picture.id, imageURL: url, title: title)
         }
+        detailCache[specialID] = wallpapers
+        return wallpapers
+    }
+
+    private func balancedSample(from groups: [[Wallpaper]], count: Int) -> [Wallpaper] {
+        let shuffledGroups = groups.shuffled().map { $0.shuffled() }
+        var result: [Wallpaper] = []
+        var seen = Set<String>()
+        var itemIndex = 0
+
+        while result.count < count {
+            var addedAny = false
+            for group in shuffledGroups where itemIndex < group.count {
+                let wallpaper = group[itemIndex]
+                if seen.insert(wallpaper.id).inserted {
+                    result.append(wallpaper)
+                    addedAny = true
+                    if result.count == count { break }
+                }
+            }
+            if !addedAny { break }
+            itemIndex += 1
+        }
+        return result
     }
 
     private func validate(_ response: URLResponse) throws {
