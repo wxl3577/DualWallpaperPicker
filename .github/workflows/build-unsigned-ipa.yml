@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-ios:
     name: Build DualWallpaperPicker iOS app
@@ -48,8 +52,21 @@ jobs:
           LOG_PATH="$RUNNER_TEMP/DualWallpaperPicker-simulator.log"
 
           xcrun simctl boot "$DEVICE_ID" || true
-          xcrun simctl bootstatus "$DEVICE_ID" -b
-          xcrun simctl install "$DEVICE_ID" "$APP_PATH"
+          INSTALLED=false
+          for ATTEMPT in {1..45}; do
+            if xcrun simctl install "$DEVICE_ID" "$APP_PATH"; then
+              INSTALLED=true
+              break
+            fi
+            sleep 2
+          done
+
+          if [ "$INSTALLED" != true ]; then
+            echo "The simulator did not become ready within 90 seconds."
+            xcrun simctl list devices
+            exit 1
+          fi
+
           xcrun simctl launch --console --terminate-running-process \
             "$DEVICE_ID" com.codex.dualwallpaperpicker >"$LOG_PATH" 2>&1 &
           CONSOLE_PID=$!
