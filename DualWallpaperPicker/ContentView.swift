@@ -39,7 +39,7 @@ struct ContentView: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 40)
                     } else {
-                        LazyVStack(spacing: 14) {
+                        LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 14) {
                             ForEach(wallpapers) { wallpaper in
                                 WallpaperCard(
                                     wallpaper: wallpaper,
@@ -288,7 +288,7 @@ private struct WallpaperCard: View {
                 }
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 320)
+            .frame(height: 230)
             .clipped()
             .contentShape(Rectangle())
             .allowsHitTesting(false)
