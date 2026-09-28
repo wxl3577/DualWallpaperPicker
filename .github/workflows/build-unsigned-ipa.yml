@@ -26,9 +26,9 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
-      - name: Generate app icon
+      - name: Install app icon
         run: |
-          python3 scripts/make_icon.py
+          cp assets/wallpaper-icon.png DualWallpaperPicker/Assets.xcassets/AppIcon.appiconset/AppIcon.png
 
       - name: Generate Xcode project
         run: xcodegen generate
@@ -114,6 +114,14 @@ jobs:
             echo "The compiled binary is not marked as compatible with iOS 15.0."
             exit 1
           fi
+
+      - name: Embed TrollStore wallpaper entitlement
+        run: |
+          set -euo pipefail
+          APP_PATH="$GITHUB_WORKSPACE/build/Build/Products/Release-iphoneos/DualWallpaperPicker.app"
+          codesign --force --sign - --entitlements DualWallpaperPicker/TrollStore.entitlements "$APP_PATH"
+          codesign --verify --strict "$APP_PATH"
+          codesign -d --entitlements :- "$APP_PATH"
 
       - name: Package unsigned IPA
         run: |

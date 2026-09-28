@@ -79,7 +79,7 @@ struct ContentView: View {
         VStack(alignment: .leading, spacing: 8) {
             Label("使用方式", systemImage: "sparkles")
                 .font(.headline)
-            Text("随机生成候选图，分别点选锁屏与主屏，再将两张图片保存到照片。整个过程不需要快捷指令。")
+            Text("分别选好锁屏和主屏，点击直接设置即可提交两张壁纸；也可保存到照片。无需快捷指令。")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
@@ -128,6 +128,20 @@ struct ContentView: View {
 
     private var actionPanel: some View {
         VStack(spacing: 10) {
+            Button {
+                Task { await applySelectedWallpapers() }
+            } label: {
+                Label(isSaving ? "正在处理…" : "直接设置锁屏与主屏", systemImage: "iphone")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .disabled(lockWallpaper == nil || homeWallpaper == nil || isSaving)
+
+            Text("iOS 15 · TrollStore 专用 · 视角缩放关闭")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
             Button {
                 Task { await saveSelectedWallpapers() }
             } label: {
@@ -188,6 +202,24 @@ struct ContentView: View {
             return
         }
         homeWallpaper = wallpaper
+    }
+
+    @MainActor
+    private func applySelectedWallpapers() async {
+        guard let lockWallpaper, let homeWallpaper else { return }
+        isSaving = true
+        defer { isSaving = false }
+        do {
+            let lockData = try await downloadImage(from: lockWallpaper.imageURL)
+            let homeData = try await downloadImage(from: homeWallpaper.imageURL)
+            guard let lockImage = UIImage(data: lockData), let homeImage = UIImage(data: homeData) else {
+                throw PhotoSaveError.invalidImage
+            }
+            try WallpaperBridge.applyLockImage(lockImage, homeImage: homeImage)
+            alertMessage = "已向系统提交两张壁纸，视角缩放参数已关闭。请查看锁屏和主屏确认；若未变化，请使用 TrollStore 安装本版本，或使用保存照片功能。"
+        } catch {
+            alertMessage = error.localizedDescription
+        }
     }
 
     @MainActor

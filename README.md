@@ -1,6 +1,16 @@
 # DualWallpaperPicker（双壁纸）
 
-一个 SwiftUI iOS 应用：从 Clarity Wallpaper 的公开接口随机生成指定数量的候选壁纸，让用户分别选择锁屏和主屏图片，并保存到照片。项目完全不依赖快捷指令。
+一个 SwiftUI iOS 应用：随机选择锁屏和主屏壁纸，支持保存照片，以及 iOS 15 / TrollStore 专用的直接设置入口。项目完全不依赖快捷指令。
+
+### 1.5.0：直接设置与新图标
+
+选好两张图片后点击“直接设置锁屏与主屏”，应用会动态调用系统私有壁纸服务，并将视角缩放参数设为 0。浅色/深色模式使用同一张选中图。需要 TrollStore 安装；普通签名不能授予壁纸专用权限。界面仅报告已提交，不保证私有服务实际生效，需真机确认。若接口不可用，可继续保存到照片。iOS 16 及以上禁用此入口的调用。
+
+构建会以 ad-hoc 签名嵌入 `com.apple.springboard.wallpaper-access` 和 `platform-application` 权限，不包含开发者证书。产物保留原有 unsigned 文件名以兼容下载流程。
+
+接口研究参考：[WallpaperSetter](https://github.com/Skittyblock/WallpaperSetter)。本项目桥接实现独立编写，不包含其壁纸文件读取或全盘访问权限。
+
+新图标使用内置图像生成工具制作，提示词概要：参考原图蓝紫、青色、玫红、橙黄低多边形渐变，中心白色叠放壁纸卡片与山景太阳，无文字、不透明方形图标。源图为 `assets/wallpaper-icon.png`。
 
 最低支持 iOS 15.0，包含 iOS 15.6 / TrollStore 安装场景。
 
@@ -28,7 +38,7 @@
 
 ```sh
 brew install xcodegen
-python3 scripts/make_icon.py
+cp assets/wallpaper-icon.png DualWallpaperPicker/Assets.xcassets/AppIcon.appiconset/AppIcon.png
 xcodegen generate
 xcodebuild -project DualWallpaperPicker.xcodeproj -scheme DualWallpaperPicker -sdk iphoneos -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build
 ```
