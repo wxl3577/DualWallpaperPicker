@@ -19,8 +19,8 @@ targets:
       - path: DualWallpaperPicker
         excludes:
           - Resources
-    resources:
       - path: DualWallpaperPicker/Resources
+        buildPhase: resources
     info:
       path: DualWallpaperPicker/Info.plist
     settings:

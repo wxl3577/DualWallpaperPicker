@@ -17,7 +17,7 @@ jobs:
 
     steps:
       - name: Checkout source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install XcodeGen
         run: brew install xcodegen
@@ -63,6 +63,11 @@ jobs:
             exit 1
           fi
 
+          if [ ! -f "$APP_PATH/双壁纸设置.shortcut" ]; then
+            echo "Bundled helper shortcut was not found in the app."
+            exit 1
+          fi
+
           mkdir -p "$GITHUB_WORKSPACE/ipa/Payload"
           cp -R "$APP_PATH" "$GITHUB_WORKSPACE/ipa/Payload/"
 
@@ -70,7 +75,7 @@ jobs:
           zip -qry "$GITHUB_WORKSPACE/DualWallpaperPicker-unsigned.ipa" Payload
 
       - name: Upload IPA and helper shortcut
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: DualWallpaperPicker-unsigned-${{ github.run_number }}
           path: |
