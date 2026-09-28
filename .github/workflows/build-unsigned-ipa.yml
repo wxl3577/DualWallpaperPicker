@@ -44,6 +44,7 @@ jobs:
             -sdk iphonesimulator \
             -destination "generic/platform=iOS Simulator" \
             -derivedDataPath "$SIM_BUILD" \
+            ENABLE_DEBUG_DYLIB=NO \
             CODE_SIGNING_ALLOWED=NO \
             clean build
 
@@ -52,6 +53,9 @@ jobs:
           LOG_PATH="$RUNNER_TEMP/DualWallpaperPicker-simulator.log"
 
           xcrun simctl boot "$DEVICE_ID" || true
+          # Installation readiness is not SpringBoard/launch readiness.
+          # Wait for the cold-booted simulator to finish its system setup first.
+          xcrun simctl bootstatus "$DEVICE_ID" -b
           INSTALLED=false
           for ATTEMPT in {1..45}; do
             if xcrun simctl install "$DEVICE_ID" "$APP_PATH"; then
