@@ -303,18 +303,32 @@ private struct WallpaperCard: View {
 
             HStack(spacing: 8) {
                 Button(action: selectLock) {
-                    Label("锁屏", systemImage: isLock ? "lock.fill" : "lock")
+                    HStack(spacing: 5) {
+                        Image(systemName: isLock ? "lock.fill" : "lock")
+                        Text("锁屏")
+                    }
                         .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .foregroundColor(.white)
+                        .background(isLock ? Color.blue : Color.gray)
+                        .contentShape(Rectangle())
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(isLock ? .blue : .gray)
+                .buttonStyle(PlainButtonStyle())
+                .contentShape(Rectangle())
 
                 Button(action: selectHome) {
-                    Label("主屏", systemImage: isHome ? "house.fill" : "house")
+                    HStack(spacing: 5) {
+                        Image(systemName: isHome ? "house.fill" : "house")
+                        Text("主屏")
+                    }
                         .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .foregroundColor(.white)
+                        .background(isHome ? Color.green : Color.gray)
+                        .contentShape(Rectangle())
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(isHome ? .green : .gray)
+                .buttonStyle(PlainButtonStyle())
+                .contentShape(Rectangle())
             }
             .font(.caption)
             .padding(10)
@@ -324,6 +338,7 @@ private struct WallpaperCard: View {
         .overlay {
             RoundedRectangle(cornerRadius: 16)
                 .stroke(isLock ? Color.blue : (isHome ? Color.green : Color.clear), lineWidth: 3)
+                .allowsHitTesting(false)
         }
     }
 }
