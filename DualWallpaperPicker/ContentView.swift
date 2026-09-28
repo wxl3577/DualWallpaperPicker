@@ -215,7 +215,7 @@ struct ContentView: View {
             guard let lockImage = UIImage(data: lockData), let homeImage = UIImage(data: homeData) else {
                 throw PhotoSaveError.invalidImage
             }
-            try WallpaperBridge.applyLockImage(lockImage, homeImage: homeImage)
+            try WallpaperBridge.applyLock(lockImage, homeImage: homeImage)
             alertMessage = "已向系统提交两张壁纸，视角缩放参数已关闭。请查看锁屏和主屏确认；若未变化，请使用 TrollStore 安装本版本，或使用保存照片功能。"
         } catch {
             alertMessage = error.localizedDescription
