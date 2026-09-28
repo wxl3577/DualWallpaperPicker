@@ -120,7 +120,7 @@ actor WallpaperService {
         try validate(detailResponse)
         let detail = try decoder.decode(APIEnvelope<SpecialDetail>.self, from: detailData).data
 
-        let wallpapers = (detail.pictureList ?? []).compactMap { picture in
+        let wallpapers: [Wallpaper] = (detail.pictureList ?? []).compactMap { picture -> Wallpaper? in
             guard let url = URL(string: picture.url, relativeTo: imageBase)?.absoluteURL else { return nil }
             let title = [picture.title, picture.titleEn, detail.headline]
                 .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
