@@ -1,13 +1,14 @@
 import SwiftUI
 import UIKit
+import Photos
 
 struct ContentView: View {
-    @Environment(\.openURL) private var openURL
     @State private var requestedCount = 8
     @State private var wallpapers: [Wallpaper] = []
     @State private var lockWallpaper: Wallpaper?
     @State private var homeWallpaper: Wallpaper?
     @State private var isLoading = false
+    @State private var isSaving = false
     @State private var alertMessage: String?
 
     private let service = WallpaperService()
@@ -81,7 +82,7 @@ struct ContentView: View {
         VStack(alignment: .leading, spacing: 8) {
             Label("使用方式", systemImage: "sparkles")
                 .font(.headline)
-            Text("随机生成候选图，分别点选锁屏与主屏。首次使用请先安装辅助快捷指令；设置时会自动关闭预览和视角缩放。")
+            Text("随机生成候选图，分别点选锁屏与主屏，再将两张图片保存到照片。整个过程不需要快捷指令。")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
@@ -130,29 +131,29 @@ struct ContentView: View {
 
     private var actionPanel: some View {
         VStack(spacing: 10) {
-            if let shortcutURL = Bundle.main.url(forResource: "DualWallpaperSetter", withExtension: "shortcut") {
-                ShareLink(item: shortcutURL) {
-                    Label("首次使用：安装辅助快捷指令", systemImage: "square.and.arrow.up")
+            Button {
+                Task { await saveSelectedWallpapers() }
+            } label: {
+                if isSaving {
+                    ProgressView()
+                        .frame(maxWidth: .infinity)
+                } else {
+                    Label("保存两张壁纸到照片", systemImage: "square.and.arrow.down")
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.bordered)
-            } else {
-                Label("构建中未包含辅助快捷指令", systemImage: "exclamationmark.triangle")
-                    .foregroundStyle(.orange)
-            }
-
-            Button(action: applyWallpapers) {
-                Label("设置锁屏与主屏壁纸", systemImage: "iphone.gen3")
-                    .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
-            .disabled(lockWallpaper == nil || homeWallpaper == nil)
+            .disabled(lockWallpaper == nil || homeWallpaper == nil || isSaving)
 
-            Text("应用会把两张图片地址暂存到剪贴板，再运行“DualWallpaperSetter”快捷指令。")
-                .font(.caption)
+            Label("保存后打开“照片”，使用系统的“用作墙纸”功能分别设置。", systemImage: "photo")
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .font(.subheadline)
+
+            Label("在系统墙纸预览中可关闭视角缩放。", systemImage: "viewfinder")
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .font(.subheadline)
                 .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
         }
         .padding()
         .background(.background, in: RoundedRectangle(cornerRadius: 16))
@@ -192,20 +193,73 @@ struct ContentView: View {
         homeWallpaper = wallpaper
     }
 
-    private func applyWallpapers() {
+    @MainActor
+    private func saveSelectedWallpapers() async {
         guard let lockWallpaper, let homeWallpaper else { return }
-        UIPasteboard.general.string = "\(lockWallpaper.imageURL.absoluteString)\n\(homeWallpaper.imageURL.absoluteString)"
+        isSaving = true
+        defer { isSaving = false }
 
-        var components = URLComponents()
-        components.scheme = "shortcuts"
-        components.host = "run-shortcut"
-        components.queryItems = [URLQueryItem(name: "name", value: "DualWallpaperSetter")]
+        do {
+            let status = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
+            guard status == .authorized || status == .limited else {
+                throw PhotoSaveError.permissionDenied
+            }
 
-        guard let url = components.url else {
-            alertMessage = "无法生成快捷指令链接。"
-            return
+            let lockData = try await downloadImage(from: lockWallpaper.imageURL)
+            let homeData = try await downloadImage(from: homeWallpaper.imageURL)
+            try await saveImage(lockData, filename: "DualWallpaper-Lock.jpg")
+            try await saveImage(homeData, filename: "DualWallpaper-Home.jpg")
+
+            alertMessage = "已保存两张图片。锁屏：\(lockWallpaper.title)；主屏：\(homeWallpaper.title)。请打开“照片”，分别使用“用作墙纸”完成设置。"
+        } catch {
+            alertMessage = error.localizedDescription
         }
-        openURL(url)
+    }
+
+    private func downloadImage(from url: URL) async throws -> Data {
+        let (data, response) = try await URLSession.shared.data(from: url)
+        guard let http = response as? HTTPURLResponse,
+              (200...299).contains(http.statusCode),
+              UIImage(data: data) != nil else {
+            throw PhotoSaveError.invalidImage
+        }
+        return data
+    }
+
+    private func saveImage(_ data: Data, filename: String) async throws {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            PHPhotoLibrary.shared().performChanges {
+                let request = PHAssetCreationRequest.forAsset()
+                let options = PHAssetResourceCreationOptions()
+                options.originalFilename = filename
+                request.addResource(with: .photo, data: data, options: options)
+            } completionHandler: { success, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else if success {
+                    continuation.resume()
+                } else {
+                    continuation.resume(throwing: PhotoSaveError.unknown)
+                }
+            }
+        }
+    }
+}
+
+private enum PhotoSaveError: LocalizedError {
+    case permissionDenied
+    case invalidImage
+    case unknown
+
+    var errorDescription: String? {
+        switch self {
+        case .permissionDenied:
+            return "没有照片添加权限。请在系统设置中允许“双壁纸”添加照片。"
+        case .invalidImage:
+            return "壁纸下载失败或返回的内容不是有效图片，请重新随机后再试。"
+        case .unknown:
+            return "保存照片失败，请稍后再试。"
+        }
     }
 }
 

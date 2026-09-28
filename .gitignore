@@ -4,6 +4,6 @@ __pycache__/
 build/
 ipa/
 *.xcodeproj/
-DualWallpaperPicker/Resources/*.shortcut
+DualWallpaperPicker/Info.plist
 DualWallpaperPicker/Assets.xcassets/AppIcon.appiconset/AppIcon.png
 

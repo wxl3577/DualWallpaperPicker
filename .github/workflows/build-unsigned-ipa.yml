@@ -22,23 +22,48 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
-      - name: Generate helper shortcut
+      - name: Generate app icon
         run: |
           python3 scripts/make_icon.py
-          python3 scripts/make_shortcut.py "$RUNNER_TEMP/DualWallpaperSetter-unsigned.shortcut"
-          mkdir -p DualWallpaperPicker/Resources
-          if shortcuts sign --mode anyone \
-            --input "$RUNNER_TEMP/DualWallpaperSetter-unsigned.shortcut" \
-            --output "DualWallpaperPicker/Resources/DualWallpaperSetter.shortcut"; then
-            echo "Signed helper shortcut for anyone."
-          else
-            echo "Shortcut notarization was unavailable; bundling the unsigned helper."
-            cp "$RUNNER_TEMP/DualWallpaperSetter-unsigned.shortcut" \
-              "DualWallpaperPicker/Resources/DualWallpaperSetter.shortcut"
-          fi
 
       - name: Generate Xcode project
         run: xcodegen generate
+
+      - name: Verify app launches in iOS Simulator
+        run: |
+          set -euo pipefail
+          SIM_BUILD="$RUNNER_TEMP/simulator-build"
+          xcodebuild \
+            -project DualWallpaperPicker.xcodeproj \
+            -scheme DualWallpaperPicker \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination "generic/platform=iOS Simulator" \
+            -derivedDataPath "$SIM_BUILD" \
+            CODE_SIGNING_ALLOWED=NO \
+            clean build
+
+          DEVICE_ID="$(xcrun simctl list devices available -j | python3 -c 'import json,sys; devices=json.load(sys.stdin)["devices"]; print(next(device["udid"] for runtime in devices.values() for device in runtime if device.get("isAvailable") and device["name"].startswith("iPhone")))')"
+          APP_PATH="$SIM_BUILD/Build/Products/Debug-iphonesimulator/DualWallpaperPicker.app"
+          LOG_PATH="$RUNNER_TEMP/DualWallpaperPicker-simulator.log"
+
+          xcrun simctl boot "$DEVICE_ID" || true
+          xcrun simctl bootstatus "$DEVICE_ID" -b
+          xcrun simctl install "$DEVICE_ID" "$APP_PATH"
+          xcrun simctl launch --console --terminate-running-process \
+            "$DEVICE_ID" com.codex.dualwallpaperpicker >"$LOG_PATH" 2>&1 &
+          CONSOLE_PID=$!
+          sleep 8
+
+          if ! kill -0 "$CONSOLE_PID" 2>/dev/null; then
+            cat "$LOG_PATH"
+            echo "The app exited during the launch smoke test."
+            exit 1
+          fi
+
+          kill "$CONSOLE_PID" || true
+          xcrun simctl terminate "$DEVICE_ID" com.codex.dualwallpaperpicker || true
+          cat "$LOG_PATH"
 
       - name: Build unsigned app
         run: |
@@ -63,24 +88,17 @@ jobs:
             exit 1
           fi
 
-          if [ ! -f "$APP_PATH/DualWallpaperSetter.shortcut" ]; then
-            echo "Bundled helper shortcut was not found in the app."
-            exit 1
-          fi
-
           mkdir -p "$GITHUB_WORKSPACE/ipa/Payload"
           cp -R "$APP_PATH" "$GITHUB_WORKSPACE/ipa/Payload/"
 
           cd "$GITHUB_WORKSPACE/ipa"
           zip -qry "$GITHUB_WORKSPACE/DualWallpaperPicker-unsigned.ipa" Payload
 
-      - name: Upload IPA and helper shortcut
+      - name: Upload IPA
         uses: actions/upload-artifact@v5
         with:
           name: DualWallpaperPicker-unsigned-${{ github.run_number }}
-          path: |
-            DualWallpaperPicker-unsigned.ipa
-            DualWallpaperPicker/Resources/DualWallpaperSetter.shortcut
+          path: DualWallpaperPicker-unsigned.ipa
           if-no-files-found: error
           compression-level: 0
           retention-days: 14

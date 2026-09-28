@@ -8,8 +8,8 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.0"
-    MARKETING_VERSION: "1.0.0"
-    CURRENT_PROJECT_VERSION: "1"
+    MARKETING_VERSION: "1.1.0"
+    CURRENT_PROJECT_VERSION: "2"
 
 targets:
   DualWallpaperPicker:
@@ -17,12 +17,19 @@ targets:
     platform: iOS
     sources:
       - path: DualWallpaperPicker
-        excludes:
-          - Resources
-      - path: DualWallpaperPicker/Resources
-        buildPhase: resources
     info:
       path: DualWallpaperPicker/Info.plist
+      properties:
+        CFBundleDisplayName: "双壁纸"
+        UILaunchScreen: {}
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        NSPhotoLibraryAddUsageDescription: "用于把选中的锁屏和主屏壁纸保存到照片。"
+        NSAppTransportSecurity:
+          NSExceptionDomains:
+            wallpapers.claritywallpaper.com:
+              NSExceptionAllowsInsecureHTTPLoads: true
+              NSIncludesSubdomains: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.codex.dualwallpaperpicker
