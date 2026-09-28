@@ -1,0 +1,82 @@
+name: Build unsigned IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  build-ios:
+    name: Build DualWallpaperPicker iOS app
+    runs-on: macos-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate helper shortcut
+        run: |
+          python3 scripts/make_icon.py
+          python3 scripts/make_shortcut.py "$RUNNER_TEMP/双壁纸设置-unsigned.shortcut"
+          mkdir -p DualWallpaperPicker/Resources
+          if shortcuts sign --mode anyone \
+            --input "$RUNNER_TEMP/双壁纸设置-unsigned.shortcut" \
+            --output "DualWallpaperPicker/Resources/双壁纸设置.shortcut"; then
+            echo "Signed helper shortcut for anyone."
+          else
+            echo "Shortcut notarization was unavailable; bundling the unsigned helper."
+            cp "$RUNNER_TEMP/双壁纸设置-unsigned.shortcut" \
+              "DualWallpaperPicker/Resources/双壁纸设置.shortcut"
+          fi
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Build unsigned app
+        run: |
+          xcodebuild \
+            -project DualWallpaperPicker.xcodeproj \
+            -scheme DualWallpaperPicker \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination "generic/platform=iOS" \
+            -derivedDataPath "$GITHUB_WORKSPACE/build" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            clean build
+
+      - name: Package unsigned IPA
+        run: |
+          APP_PATH="$GITHUB_WORKSPACE/build/Build/Products/Release-iphoneos/DualWallpaperPicker.app"
+
+          if [ ! -d "$APP_PATH" ]; then
+            echo "Compiled app was not found at: $APP_PATH"
+            exit 1
+          fi
+
+          mkdir -p "$GITHUB_WORKSPACE/ipa/Payload"
+          cp -R "$APP_PATH" "$GITHUB_WORKSPACE/ipa/Payload/"
+
+          cd "$GITHUB_WORKSPACE/ipa"
+          zip -qry "$GITHUB_WORKSPACE/DualWallpaperPicker-unsigned.ipa" Payload
+
+      - name: Upload IPA and helper shortcut
+        uses: actions/upload-artifact@v4
+        with:
+          name: DualWallpaperPicker-unsigned-${{ github.run_number }}
+          path: |
+            DualWallpaperPicker-unsigned.ipa
+            DualWallpaperPicker/Resources/双壁纸设置.shortcut
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
