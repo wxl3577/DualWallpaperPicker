@@ -125,7 +125,7 @@ struct ContentView: View {
             .controlSize(.large)
             .disabled(lockWallpaper == nil || homeWallpaper == nil || isSaving || isLoading)
 
-            Text("iOS 15 · TrollStore 专用 · 视角缩放关闭")
+            Text("静态壁纸 · 关闭视角缩放")
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
@@ -191,7 +191,7 @@ struct ContentView: View {
                 throw WallpaperError.invalidImage
             }
             try WallpaperBridge.applyLock(lockImage, homeImage: homeImage)
-            alertMessage = "已向系统提交两张壁纸，视角缩放参数已关闭。请查看锁屏和主屏确认。"
+            alertMessage = "已按关闭视角缩放的选项提交两张壁纸，请查看锁屏和主屏确认。"
         } catch {
             alertMessage = error.localizedDescription
         }
