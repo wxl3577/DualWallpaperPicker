@@ -68,8 +68,24 @@ jobs:
           fi
 
           xcrun simctl launch --console --terminate-running-process \
-            "$DEVICE_ID" com.codex.dualwallpaperpicker >"$LOG_PATH" 2>&1 &
+            "$DEVICE_ID" com.codex.dualwallpaperpicker --test-wallpaper-canvas >"$LOG_PATH" 2>&1 &
           CONSOLE_PID=$!
+          TESTS_READY=false
+          for ATTEMPT in {1..60}; do
+            if grep -q 'WALLPAPER_CANVAS_TESTS_PASSED' "$LOG_PATH"; then
+              TESTS_READY=true
+              break
+            fi
+            if ! kill -0 "$CONSOLE_PID" 2>/dev/null; then
+              break
+            fi
+            sleep 2
+          done
+          if [ "$TESTS_READY" != true ]; then
+            cat "$LOG_PATH"
+            echo "The app did not complete wallpaper canvas tests."
+            exit 1
+          fi
           sleep 8
 
           if ! kill -0 "$CONSOLE_PID" 2>/dev/null; then

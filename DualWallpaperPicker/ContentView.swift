@@ -125,7 +125,7 @@ struct ContentView: View {
             .controlSize(.large)
             .disabled(lockWallpaper == nil || homeWallpaper == nil || isSaving || isLoading)
 
-            Text("静态壁纸 · 关闭视角缩放")
+            Text("完整显示原图 · 比例不同时留黑边")
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
@@ -190,8 +190,10 @@ struct ContentView: View {
             guard let lockImage = UIImage(data: lockData), let homeImage = UIImage(data: homeData) else {
                 throw WallpaperError.invalidImage
             }
-            try WallpaperBridge.applyLock(lockImage, homeImage: homeImage)
-            alertMessage = "已按关闭视角缩放的选项提交两张壁纸，请查看锁屏和主屏确认。"
+            let lockCanvas = WallpaperCanvas.prepare(lockImage)
+            let homeCanvas = WallpaperCanvas.prepare(homeImage)
+            try WallpaperBridge.applyLock(lockCanvas, homeImage: homeCanvas)
+            alertMessage = "已按完整图片模式提交锁屏与主屏，不同比例会保留黑边。请查看实际显示效果。"
         } catch {
             alertMessage = error.localizedDescription
         }
@@ -232,7 +234,7 @@ private struct WallpaperCard: View {
             AsyncImage(url: wallpaper.imageURL) { phase in
                 switch phase {
                 case .success(let image):
-                    image.resizable().scaledToFill()
+                    image.resizable().scaledToFit()
                 case .failure:
                     ZStack {
                         Color.secondary.opacity(0.12)
@@ -249,6 +251,7 @@ private struct WallpaperCard: View {
             }
             .frame(maxWidth: .infinity)
             .frame(height: 230)
+            .background(Color.black)
             .clipped()
             .contentShape(Rectangle())
             .allowsHitTesting(false)
@@ -267,9 +270,9 @@ private struct WallpaperCard: View {
                         Text("锁屏")
                     }
                         .frame(maxWidth: .infinity)
-                        .frame(minHeight: 44)
+                        .frame(height: 32)
                         .foregroundColor(isLock ? .white : .blue)
-                        .background(Capsule().fill(isLock ? Color.blue : Color.blue.opacity(0.12)))
+                        .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(isLock ? Color.blue : Color.blue.opacity(0.12)))
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(PlainButtonStyle())
@@ -281,16 +284,17 @@ private struct WallpaperCard: View {
                         Text("主屏")
                     }
                         .frame(maxWidth: .infinity)
-                        .frame(minHeight: 44)
+                        .frame(height: 32)
                         .foregroundColor(isHome ? .white : .purple)
-                        .background(Capsule().fill(isHome ? Color.purple : Color.purple.opacity(0.12)))
+                        .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(isHome ? Color.purple : Color.purple.opacity(0.12)))
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(PlainButtonStyle())
                 .contentShape(Rectangle())
             }
             .font(.caption.weight(.semibold))
-            .padding(10)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
         }
         .frame(maxWidth: .infinity)
         .background(Color(uiColor: .secondarySystemGroupedBackground))
