@@ -8,8 +8,8 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.0"
-    MARKETING_VERSION: "1.5.0"
-    CURRENT_PROJECT_VERSION: "7"
+    MARKETING_VERSION: "1.6.0"
+    CURRENT_PROJECT_VERSION: "8"
 
 targets:
   DualWallpaperPicker:
@@ -20,13 +20,12 @@ targets:
     info:
       path: DualWallpaperPicker/Info.plist
       properties:
-        CFBundleDisplayName: "双壁纸"
+        CFBundleDisplayName: "鱼头壁纸"
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         UILaunchScreen: {}
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
-        NSPhotoLibraryAddUsageDescription: "用于把选中的锁屏和主屏壁纸保存到照片。"
         NSAppTransportSecurity:
           NSExceptionDomains:
             wallpapers.claritywallpaper.com:

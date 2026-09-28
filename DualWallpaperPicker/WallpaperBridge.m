@@ -34,10 +34,10 @@ static id Options(Class cls, NSInteger mode) {
 @implementation WallpaperBridge
 + (BOOL)applyLockImage:(UIImage *)lockImage homeImage:(UIImage *)homeImage error:(NSError **)error {
 #if TARGET_OS_SIMULATOR
-    return Fail(error, @"直接设置需要 iOS 15 真机和 TrollStore 安装。模拟器请使用保存照片功能。");
+    return Fail(error, @"直接设置需要 iOS 15 真机和 TrollStore 安装，模拟器不支持。");
 #else
     if (NSProcessInfo.processInfo.operatingSystemVersion.majorVersion != 15)
-        return Fail(error, @"此直接设置入口目前仅适配 iOS 15，请使用保存照片功能。");
+        return Fail(error, @"直接设置目前仅适配 iOS 15 与 TrollStore。");
     static void *foundation;
     static void *services;
     static dispatch_once_t once;
@@ -45,10 +45,10 @@ static id Options(Class cls, NSInteger mode) {
         foundation = dlopen("/System/Library/PrivateFrameworks/SpringBoardFoundation.framework/SpringBoardFoundation", RTLD_LAZY);
         services = dlopen("/System/Library/PrivateFrameworks/SpringBoardUIServices.framework/SpringBoardUIServices", RTLD_LAZY);
     });
-    if (!foundation || !services) return Fail(error, @"系统壁纸服务不可用，请使用保存照片功能。");
+    if (!foundation || !services) return Fail(error, @"系统壁纸服务不可用，请确认系统版本与 TrollStore 安装方式。");
     SetImagesFunction setter = (SetImagesFunction)dlsym(services, "SBSUIWallpaperSetImages");
     Class cls = NSClassFromString(@"SBFWallpaperOptions");
-    if (!setter || !cls) return Fail(error, @"系统未提供兼容的壁纸接口，请使用保存照片功能。");
+    if (!setter || !cls) return Fail(error, @"系统未提供兼容的壁纸接口。");
     @try {
         // Construct all options before modifying either wallpaper. Mode 1/2 denotes
         // light/dark appearance, while target 1/2 denotes lock/home screen.
@@ -62,7 +62,7 @@ static id Options(Class cls, NSInteger mode) {
         // submission rather than claiming the actual wallpapers were verified.
         return YES;
     } @catch (NSException *exception) {
-        return Fail(error, [NSString stringWithFormat:@"壁纸请求未完成（可能已设置其中一张）：%@。可改用保存照片。", exception.reason ?: @"接口不兼容"]);
+        return Fail(error, [NSString stringWithFormat:@"壁纸请求未完成（可能已设置其中一张）：%@。请重新选择后再试。", exception.reason ?: @"接口不兼容"]);
     }
 #endif
 }

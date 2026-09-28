@@ -1,6 +1,5 @@
 import SwiftUI
 import UIKit
-import Photos
 
 struct ContentView: View {
     @State private var requestedCount = 8
@@ -17,7 +16,6 @@ struct ContentView: View {
         NavigationView {
             ScrollView {
                 VStack(spacing: 18) {
-                    introCard
                     controls
                     selectionSummary
 
@@ -48,6 +46,7 @@ struct ContentView: View {
                                     selectLock: { chooseLock(wallpaper) },
                                     selectHome: { chooseHome(wallpaper) }
                                 )
+                                .disabled(isSaving)
                             }
                         }
                     }
@@ -57,7 +56,7 @@ struct ContentView: View {
                 .padding()
             }
             .background(Color(uiColor: .systemGroupedBackground))
-            .navigationTitle("双壁纸")
+            .navigationTitle("鱼头壁纸")
             .alert("提示", isPresented: Binding(
                 get: { alertMessage != nil },
                 set: { if !$0 { alertMessage = nil } }
@@ -75,22 +74,10 @@ struct ContentView: View {
         .navigationViewStyle(StackNavigationViewStyle())
     }
 
-    private var introCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label("使用方式", systemImage: "sparkles")
-                .font(.headline)
-            Text("分别选好锁屏和主屏，点击直接设置即可提交两张壁纸；也可保存到照片。无需快捷指令。")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding()
-        .background(.background, in: RoundedRectangle(cornerRadius: 16))
-    }
-
     private var controls: some View {
         VStack(spacing: 12) {
             Stepper("候选数量：\(requestedCount) 张", value: $requestedCount, in: 2...20, step: 2)
+                .disabled(isLoading || isSaving)
             Button {
                 Task { await reload() }
             } label: {
@@ -98,7 +85,7 @@ struct ContentView: View {
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
-            .disabled(isLoading)
+            .disabled(isLoading || isSaving)
         }
         .padding()
         .background(.background, in: RoundedRectangle(cornerRadius: 16))
@@ -136,35 +123,21 @@ struct ContentView: View {
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
-            .disabled(lockWallpaper == nil || homeWallpaper == nil || isSaving)
+            .disabled(lockWallpaper == nil || homeWallpaper == nil || isSaving || isLoading)
 
             Text("iOS 15 · TrollStore 专用 · 视角缩放关闭")
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
             Button {
-                Task { await saveSelectedWallpapers() }
+                Task { await reload() }
             } label: {
-                if isSaving {
-                    ProgressView()
-                        .frame(maxWidth: .infinity)
-                } else {
-                    Label("保存两张壁纸到照片", systemImage: "square.and.arrow.down")
-                        .frame(maxWidth: .infinity)
-                }
+                Label(isLoading ? "正在刷新…" : "刷新 · 再来 \(requestedCount) 张", systemImage: "arrow.clockwise")
+                    .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.bordered)
             .controlSize(.large)
-            .disabled(lockWallpaper == nil || homeWallpaper == nil || isSaving)
-
-            Label("保存后打开“照片”，使用系统的“用作墙纸”功能分别设置。", systemImage: "photo")
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .font(.subheadline)
-
-            Label("在系统墙纸预览中可关闭视角缩放。", systemImage: "viewfinder")
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+            .disabled(isLoading || isSaving)
         }
         .padding()
         .background(.background, in: RoundedRectangle(cornerRadius: 16))
@@ -172,14 +145,16 @@ struct ContentView: View {
 
     @MainActor
     private func reload() async {
+        guard !isLoading && !isSaving else { return }
+        let count = requestedCount
         isLoading = true
         lockWallpaper = nil
         homeWallpaper = nil
         defer { isLoading = false }
 
         do {
-            wallpapers = try await service.randomWallpapers(count: requestedCount)
-            if wallpapers.count < requestedCount {
+            wallpapers = try await service.randomWallpapers(count: count)
+            if wallpapers.count < count {
                 alertMessage = "本次取到 \(wallpapers.count) 张有效壁纸，可直接选择或再随机一次。"
             }
         } catch {
@@ -206,40 +181,17 @@ struct ContentView: View {
 
     @MainActor
     private func applySelectedWallpapers() async {
-        guard let lockWallpaper, let homeWallpaper else { return }
+        guard !isSaving && !isLoading, let lockWallpaper, let homeWallpaper else { return }
         isSaving = true
         defer { isSaving = false }
         do {
             let lockData = try await downloadImage(from: lockWallpaper.imageURL)
             let homeData = try await downloadImage(from: homeWallpaper.imageURL)
             guard let lockImage = UIImage(data: lockData), let homeImage = UIImage(data: homeData) else {
-                throw PhotoSaveError.invalidImage
+                throw WallpaperError.invalidImage
             }
             try WallpaperBridge.applyLock(lockImage, homeImage: homeImage)
-            alertMessage = "已向系统提交两张壁纸，视角缩放参数已关闭。请查看锁屏和主屏确认；若未变化，请使用 TrollStore 安装本版本，或使用保存照片功能。"
-        } catch {
-            alertMessage = error.localizedDescription
-        }
-    }
-
-    @MainActor
-    private func saveSelectedWallpapers() async {
-        guard let lockWallpaper, let homeWallpaper else { return }
-        isSaving = true
-        defer { isSaving = false }
-
-        do {
-            let status = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
-            guard status == .authorized || status == .limited else {
-                throw PhotoSaveError.permissionDenied
-            }
-
-            let lockData = try await downloadImage(from: lockWallpaper.imageURL)
-            let homeData = try await downloadImage(from: homeWallpaper.imageURL)
-            try await saveImage(lockData, filename: "DualWallpaper-Lock.jpg")
-            try await saveImage(homeData, filename: "DualWallpaper-Home.jpg")
-
-            alertMessage = "已保存两张图片。锁屏：\(lockWallpaper.title)；主屏：\(homeWallpaper.title)。请打开“照片”，分别使用“用作墙纸”完成设置。"
+            alertMessage = "已向系统提交两张壁纸，视角缩放参数已关闭。请查看锁屏和主屏确认。"
         } catch {
             alertMessage = error.localizedDescription
         }
@@ -250,44 +202,20 @@ struct ContentView: View {
         guard let http = response as? HTTPURLResponse,
               (200...299).contains(http.statusCode),
               UIImage(data: data) != nil else {
-            throw PhotoSaveError.invalidImage
+            throw WallpaperError.invalidImage
         }
         return data
     }
 
-    private func saveImage(_ data: Data, filename: String) async throws {
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            PHPhotoLibrary.shared().performChanges {
-                let request = PHAssetCreationRequest.forAsset()
-                let options = PHAssetResourceCreationOptions()
-                options.originalFilename = filename
-                request.addResource(with: .photo, data: data, options: options)
-            } completionHandler: { success, error in
-                if let error {
-                    continuation.resume(throwing: error)
-                } else if success {
-                    continuation.resume()
-                } else {
-                    continuation.resume(throwing: PhotoSaveError.unknown)
-                }
-            }
-        }
-    }
 }
 
-private enum PhotoSaveError: LocalizedError {
-    case permissionDenied
+private enum WallpaperError: LocalizedError {
     case invalidImage
-    case unknown
 
     var errorDescription: String? {
         switch self {
-        case .permissionDenied:
-            return "没有照片添加权限。请在系统设置中允许“双壁纸”添加照片。"
         case .invalidImage:
             return "壁纸下载失败或返回的内容不是有效图片，请重新随机后再试。"
-        case .unknown:
-            return "保存照片失败，请稍后再试。"
         }
     }
 }
@@ -339,9 +267,9 @@ private struct WallpaperCard: View {
                         Text("锁屏")
                     }
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .foregroundColor(.white)
-                        .background(isLock ? Color.blue : Color.gray)
+                        .frame(minHeight: 44)
+                        .foregroundColor(isLock ? .white : .blue)
+                        .background(Capsule().fill(isLock ? Color.blue : Color.blue.opacity(0.12)))
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(PlainButtonStyle())
@@ -353,15 +281,15 @@ private struct WallpaperCard: View {
                         Text("主屏")
                     }
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .foregroundColor(.white)
-                        .background(isHome ? Color.green : Color.gray)
+                        .frame(minHeight: 44)
+                        .foregroundColor(isHome ? .white : .purple)
+                        .background(Capsule().fill(isHome ? Color.purple : Color.purple.opacity(0.12)))
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(PlainButtonStyle())
                 .contentShape(Rectangle())
             }
-            .font(.caption)
+            .font(.caption.weight(.semibold))
             .padding(10)
         }
         .frame(maxWidth: .infinity)
