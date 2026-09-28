@@ -18,7 +18,7 @@ struct ContentView: View {
     ]
 
     var body: some View {
-        NavigationStack {
+        NavigationView {
             ScrollView {
                 VStack(spacing: 18) {
                     introCard
@@ -76,6 +76,7 @@ struct ContentView: View {
                 }
             }
         }
+        .navigationViewStyle(StackNavigationViewStyle())
     }
 
     private var introCard: some View {

@@ -96,6 +96,25 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             clean build
 
+      - name: Verify iOS 15 compatibility metadata
+        run: |
+          set -euo pipefail
+          APP_PATH="$GITHUB_WORKSPACE/build/Build/Products/Release-iphoneos/DualWallpaperPicker.app"
+          BINARY_PATH="$APP_PATH/DualWallpaperPicker"
+          MINIMUM_OS="$(/usr/libexec/PlistBuddy -c 'Print :MinimumOSVersion' "$APP_PATH/Info.plist")"
+
+          echo "Info.plist MinimumOSVersion: $MINIMUM_OS"
+          if [ "$MINIMUM_OS" != "15.0" ]; then
+            echo "Expected MinimumOSVersion 15.0, got $MINIMUM_OS"
+            exit 1
+          fi
+
+          xcrun vtool -show-build "$BINARY_PATH" | tee "$RUNNER_TEMP/vtool-build.txt"
+          if ! grep -Eq 'minos[[:space:]]+15\.0' "$RUNNER_TEMP/vtool-build.txt"; then
+            echo "The compiled binary is not marked as compatible with iOS 15.0."
+            exit 1
+          fi
+
       - name: Package unsigned IPA
         run: |
           APP_PATH="$GITHUB_WORKSPACE/build/Build/Products/Release-iphoneos/DualWallpaperPicker.app"

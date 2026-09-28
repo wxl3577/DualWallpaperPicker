@@ -2,6 +2,8 @@
 
 一个 SwiftUI iOS 应用：从 Clarity Wallpaper 的公开接口随机生成指定数量的候选壁纸，让用户分别选择锁屏和主屏图片，并保存到照片。项目完全不依赖快捷指令。
 
+最低支持 iOS 15.0，包含 iOS 15.6 / TrollStore 安装场景。
+
 ## 功能
 
 - 可选择随机生成 2–20 张候选壁纸。
@@ -10,6 +12,7 @@
 - 在系统“用作墙纸”预览中由用户关闭视角缩放。
 - GitHub Actions 在 `macos-latest` 上构建无签名 IPA。
 - Actions 会先在 iOS 模拟器中启动 App 8 秒，启动不闪退才继续打包。
+- Actions 会检查 IPA 内 Info.plist 和 Mach-O 二进制的最低系统版本均为 iOS 15.0。
 - 构建产物保留 14 天。
 
 ## 使用
