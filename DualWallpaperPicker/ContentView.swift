@@ -37,16 +37,22 @@ struct ContentView: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 40)
                     } else {
-                        LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 14) {
-                            ForEach(wallpapers) { wallpaper in
-                                WallpaperCard(
-                                    wallpaper: wallpaper,
-                                    isLock: lockWallpaper?.id == wallpaper.id,
-                                    isHome: homeWallpaper?.id == wallpaper.id,
-                                    selectLock: { chooseLock(wallpaper) },
-                                    selectHome: { chooseHome(wallpaper) }
-                                )
-                                .disabled(isSaving)
+                        HStack(alignment: .top, spacing: 12) {
+                            ForEach(0..<2) { column in
+                                VStack(spacing: 14) {
+                                    ForEach(wallpapers.indices.filter { $0 % 2 == column }, id: \.self) { index in
+                                        let wallpaper = wallpapers[index]
+                                        WallpaperCard(
+                                            wallpaper: wallpaper,
+                                            isLock: lockWallpaper?.id == wallpaper.id,
+                                            isHome: homeWallpaper?.id == wallpaper.id,
+                                            selectLock: { chooseLock(wallpaper) },
+                                            selectHome: { chooseHome(wallpaper) }
+                                        )
+                                        .disabled(isSaving)
+                                    }
+                                }
+                                .frame(maxWidth: .infinity)
                             }
                         }
                     }
@@ -118,12 +124,12 @@ struct ContentView: View {
             Button {
                 Task { await applySelectedWallpapers() }
             } label: {
-                Label(isSaving ? "正在处理…" : "直接设置锁屏与主屏", systemImage: "iphone")
+                Label(isSaving ? "正在处理…" : settingTitle, systemImage: "iphone")
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
-            .disabled(lockWallpaper == nil || homeWallpaper == nil || isSaving || isLoading)
+            .disabled((lockWallpaper == nil && homeWallpaper == nil) || isSaving || isLoading)
 
             Text("完整显示原图 · 比例不同时留黑边")
                 .font(.caption)
@@ -164,6 +170,10 @@ struct ContentView: View {
     }
 
     private func chooseLock(_ wallpaper: Wallpaper) {
+        if lockWallpaper?.id == wallpaper.id {
+            lockWallpaper = nil
+            return
+        }
         guard homeWallpaper?.id != wallpaper.id else {
             alertMessage = "锁屏和主屏请选择两张不同的壁纸。"
             return
@@ -172,6 +182,10 @@ struct ContentView: View {
     }
 
     private func chooseHome(_ wallpaper: Wallpaper) {
+        if homeWallpaper?.id == wallpaper.id {
+            homeWallpaper = nil
+            return
+        }
         guard lockWallpaper?.id != wallpaper.id else {
             alertMessage = "锁屏和主屏请选择两张不同的壁纸。"
             return
@@ -179,21 +193,35 @@ struct ContentView: View {
         homeWallpaper = wallpaper
     }
 
+    private var settingTitle: String {
+        if lockWallpaper != nil && homeWallpaper == nil { return "直接设置锁屏" }
+        if homeWallpaper != nil && lockWallpaper == nil { return "直接设置主屏" }
+        return "直接设置锁屏与主屏"
+    }
+
+    private func preparedImage(for wallpaper: Wallpaper?) async throws -> UIImage? {
+        guard let wallpaper else { return nil }
+        let data = try await downloadImage(from: wallpaper.imageURL)
+        guard let image = UIImage(data: data) else { throw WallpaperError.invalidImage }
+        return WallpaperCanvas.prepare(image)
+    }
+
     @MainActor
     private func applySelectedWallpapers() async {
-        guard !isSaving && !isLoading, let lockWallpaper, let homeWallpaper else { return }
+        guard !isSaving && !isLoading, lockWallpaper != nil || homeWallpaper != nil else { return }
+        let selectedLock = lockWallpaper
+        let selectedHome = homeWallpaper
         isSaving = true
         defer { isSaving = false }
         do {
-            let lockData = try await downloadImage(from: lockWallpaper.imageURL)
-            let homeData = try await downloadImage(from: homeWallpaper.imageURL)
-            guard let lockImage = UIImage(data: lockData), let homeImage = UIImage(data: homeData) else {
-                throw WallpaperError.invalidImage
-            }
-            let lockCanvas = WallpaperCanvas.prepare(lockImage)
-            let homeCanvas = WallpaperCanvas.prepare(homeImage)
+            let lockCanvas = try await preparedImage(for: selectedLock)
+            let homeCanvas = try await preparedImage(for: selectedHome)
             try WallpaperBridge.applyLock(lockCanvas, homeImage: homeCanvas)
-            alertMessage = "已按完整图片模式提交锁屏与主屏，不同比例会保留黑边。请查看实际显示效果。"
+            if selectedLock != nil && selectedHome != nil {
+                alertMessage = "锁屏与主图已设置完成。"
+            } else {
+                alertMessage = selectedLock != nil ? "锁屏已设置完成。" : "主屏已设置完成。"
+            }
         } catch {
             alertMessage = error.localizedDescription
         }
@@ -242,16 +270,16 @@ private struct WallpaperCard: View {
                             .font(.largeTitle)
                             .foregroundStyle(.secondary)
                     }
+                    .frame(height: 230)
                 default:
                     ZStack {
                         Color.secondary.opacity(0.08)
                         ProgressView()
                     }
+                    .frame(height: 230)
                 }
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 230)
-            .background(Color.black)
             .clipped()
             .contentShape(Rectangle())
             .allowsHitTesting(false)

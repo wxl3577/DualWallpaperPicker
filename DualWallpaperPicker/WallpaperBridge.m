@@ -44,6 +44,7 @@ static id Options(Class cls, NSInteger mode) {
 
 @implementation WallpaperBridge
 + (BOOL)applyLockImage:(UIImage *)lockImage homeImage:(UIImage *)homeImage error:(NSError **)error {
+    if (!lockImage && !homeImage) return Fail(error, @"请至少选择一张壁纸。");
 #if TARGET_OS_SIMULATOR
     return Fail(error, @"直接设置需要 iOS 15 真机及壁纸设置权限，模拟器不支持。");
 #else
@@ -63,14 +64,18 @@ static id Options(Class cls, NSInteger mode) {
     @try {
         // Construct all options before modifying either wallpaper. Mode 1/2 denotes
         // light/dark appearance, while target 1/2 denotes lock/home screen.
-        NSDictionary *lockOptions = @{@"light": Options(cls, 1), @"dark": Options(cls, 2)};
-        NSDictionary *homeOptions = @{@"light": Options(cls, 1), @"dark": Options(cls, 2)};
+        NSDictionary *lockOptions = lockImage ? @{@"light": Options(cls, 1), @"dark": Options(cls, 2)} : nil;
+        NSDictionary *homeOptions = homeImage ? @{@"light": Options(cls, 1), @"dark": Options(cls, 2)} : nil;
         NSInteger style = UIScreen.mainScreen.traitCollection.userInterfaceStyle;
-        NSInteger lockResult = setter(@{@"light": lockImage, @"dark": lockImage}, lockOptions, 1, style);
-        NSInteger homeResult = setter(@{@"light": homeImage, @"dark": homeImage}, homeOptions, 2, style);
-        NSLog(@"Wallpaper requests returned lock=%ld home=%ld", (long)lockResult, (long)homeResult);
-        // This undocumented API has no reliable read-back here. The UI reports
-        // submission rather than claiming the actual wallpapers were verified.
+        if (lockImage) {
+            NSInteger result = setter(@{@"light": lockImage, @"dark": lockImage}, lockOptions, 1, style);
+            NSLog(@"Lock wallpaper request returned %ld", (long)result);
+        }
+        if (homeImage) {
+            NSInteger result = setter(@{@"light": homeImage, @"dark": homeImage}, homeOptions, 2, style);
+            NSLog(@"Home wallpaper request returned %ld", (long)result);
+        }
+        // Completion means the requested calls returned, not a system read-back.
         return YES;
     } @catch (NSException *exception) {
         return Fail(error, [NSString stringWithFormat:@"壁纸请求未完成（可能已设置其中一张）：%@。请重新选择后再试。", exception.reason ?: @"接口不兼容"]);
