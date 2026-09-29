@@ -6,6 +6,7 @@ struct DualWallpaperPickerApp: App {
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--test-wallpaper-canvas") {
             WallpaperCanvas.runSelfTests()
+            Task { @MainActor in await WallpaperDownloadTests.run() }
         }
         #endif
     }

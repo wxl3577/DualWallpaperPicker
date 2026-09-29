@@ -8,9 +8,15 @@ struct ContentView: View {
     @State private var homeWallpaper: Wallpaper?
     @State private var isLoading = false
     @State private var isSaving = false
+    @State private var downloadingWallpaperID: String?
+    @State private var downloadedWallpaperIDs: Set<String> = []
+    @State private var showPhotoSettings = false
     @State private var alertMessage: String?
 
     private let service = WallpaperService.shared
+    private let downloadService = WallpaperDownloadService()
+
+    private var isBusy: Bool { isSaving || downloadingWallpaperID != nil }
 
     var body: some View {
         NavigationView {
@@ -47,8 +53,12 @@ struct ContentView: View {
                                             wallpaper: wallpaper,
                                             isLock: lockWallpaper?.id == wallpaper.id,
                                             isHome: homeWallpaper?.id == wallpaper.id,
+                                            isDownloading: downloadingWallpaperID == wallpaper.id,
+                                            isDownloaded: downloadedWallpaperIDs.contains(wallpaper.id),
+                                            downloadDisabled: isBusy,
                                             selectLock: { chooseLock(wallpaper) },
-                                            selectHome: { chooseHome(wallpaper) }
+                                            selectHome: { chooseHome(wallpaper) },
+                                            download: { Task { await downloadWallpaper(wallpaper) } }
                                         )
                                         .disabled(isSaving)
                                     }
@@ -68,6 +78,13 @@ struct ContentView: View {
                 get: { alertMessage != nil },
                 set: { if !$0 { alertMessage = nil } }
             )) {
+                if showPhotoSettings {
+                    Button("前往设置") {
+                        if let url = URL(string: UIApplication.openSettingsURLString) {
+                            UIApplication.shared.open(url)
+                        }
+                    }
+                }
                 Button("知道了", role: .cancel) {}
             } message: {
                 Text(alertMessage ?? "")
@@ -84,7 +101,7 @@ struct ContentView: View {
     private var controls: some View {
         VStack(spacing: 12) {
             Stepper("候选数量：\(requestedCount) 张", value: $requestedCount, in: 2...20, step: 2)
-                .disabled(isLoading || isSaving)
+                .disabled(isLoading || isBusy)
             Button {
                 Task { await reload() }
             } label: {
@@ -92,7 +109,7 @@ struct ContentView: View {
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
-            .disabled(isLoading || isSaving)
+            .disabled(isLoading || isBusy)
         }
         .padding()
         .background(.background, in: RoundedRectangle(cornerRadius: 16))
@@ -150,7 +167,7 @@ struct ContentView: View {
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
-            .disabled((lockWallpaper == nil && homeWallpaper == nil) || isSaving || isLoading)
+            .disabled((lockWallpaper == nil && homeWallpaper == nil) || isBusy || isLoading)
 
             Text("完整显示原图 · 比例不同时留黑边")
                 .font(.caption)
@@ -164,7 +181,7 @@ struct ContentView: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.large)
-            .disabled(isLoading || isSaving)
+            .disabled(isLoading || isBusy)
         }
         .padding()
         .background(.background, in: RoundedRectangle(cornerRadius: 16))
@@ -172,7 +189,8 @@ struct ContentView: View {
 
     @MainActor
     private func reload() async {
-        guard !isLoading && !isSaving else { return }
+        guard !isLoading && !isBusy else { return }
+        showPhotoSettings = false
         let count = requestedCount
         isLoading = true
         lockWallpaper = nil
@@ -191,6 +209,7 @@ struct ContentView: View {
     }
 
     private func chooseLock(_ wallpaper: Wallpaper) {
+        showPhotoSettings = false
         if lockWallpaper?.id == wallpaper.id {
             lockWallpaper = nil
             return
@@ -203,6 +222,7 @@ struct ContentView: View {
     }
 
     private func chooseHome(_ wallpaper: Wallpaper) {
+        showPhotoSettings = false
         if homeWallpaper?.id == wallpaper.id {
             homeWallpaper = nil
             return
@@ -228,8 +248,31 @@ struct ContentView: View {
     }
 
     @MainActor
+    private func downloadWallpaper(_ wallpaper: Wallpaper) async {
+        guard !isBusy && !isLoading else { return }
+        showPhotoSettings = false
+        downloadingWallpaperID = wallpaper.id
+        defer { downloadingWallpaperID = nil }
+
+        do {
+            try await downloadService.downloadToPhotos(from: wallpaper.imageURL)
+            downloadedWallpaperIDs.insert(wallpaper.id)
+            alertMessage = "壁纸已保存到系统相册，保留原始尺寸和画质。"
+        } catch is CancellationError {
+            return
+        } catch {
+            if let downloadError = error as? WallpaperDownloadError,
+               case .photoAccessDenied = downloadError {
+                showPhotoSettings = true
+            }
+            alertMessage = error.localizedDescription
+        }
+    }
+
+    @MainActor
     private func applySelectedWallpapers() async {
-        guard !isSaving && !isLoading, lockWallpaper != nil || homeWallpaper != nil else { return }
+        guard !isBusy && !isLoading, lockWallpaper != nil || homeWallpaper != nil else { return }
+        showPhotoSettings = false
         let selectedLock = lockWallpaper
         let selectedHome = homeWallpaper
         isSaving = true
@@ -275,8 +318,12 @@ private struct WallpaperCard: View {
     let wallpaper: Wallpaper
     let isLock: Bool
     let isHome: Bool
+    let isDownloading: Bool
+    let isDownloaded: Bool
+    let downloadDisabled: Bool
     let selectLock: () -> Void
     let selectHome: () -> Void
+    let download: () -> Void
     @State private var loadedImage: UIImage?
     @State private var imageSizeText: String?
     @State private var imageLoadFailed = false
@@ -354,6 +401,24 @@ private struct WallpaperCard: View {
             .font(.caption.weight(.semibold))
             .padding(.horizontal, 10)
             .padding(.vertical, 7)
+
+            Button(action: download) {
+                HStack(spacing: 5) {
+                    if isDownloading {
+                        ProgressView()
+                    } else {
+                        Image(systemName: isDownloaded ? "checkmark.circle" : "square.and.arrow.down")
+                    }
+                    Text(isDownloading ? "正在保存…" : (isDownloaded ? "再次下载" : "下载到相册"))
+                }
+                .font(.caption.weight(.semibold))
+                .frame(maxWidth: .infinity, minHeight: 36)
+                .background(Color.blue.opacity(0.12), in: RoundedRectangle(cornerRadius: 7))
+            }
+            .buttonStyle(.plain)
+            .disabled(downloadDisabled)
+            .padding(.horizontal, 10)
+            .padding(.bottom, 10)
         }
         .frame(maxWidth: .infinity)
         .background(Color(uiColor: .secondarySystemGroupedBackground))
