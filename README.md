@@ -2,6 +2,21 @@
 
 > **TrollStore 专用 · TrollStore Only**
 
+## 1.1 更新 / What's new in 1.1
+
+- 每张壁纸新增“下载到相册”，保存原始图片，不裁剪、不添加黑边、不重新压缩。
+- 首次下载仅请求添加照片权限；拒绝授权后可通过提示前往系统设置。
+- 显示保存状态和结果，防止处理中重复点击，失败后可以重试。
+- 版本号 1.1，构建号 2。下载功能的真机相册授权与写入仍需在设备上验收。
+
+Tap **下载到相册** on any wallpaper to save the original image to Photos without resizing or re-encoding. Only add-only Photos permission is requested. Saving status, success/error feedback and retry are supported. Version: **1.1 (2)**. Photo permission and actual library writes still require on-device verification.
+
+### 构建与安装 / Build and install
+
+在 GitHub 的 **Actions → All workflows → Build unsigned IPA** 中运行工作流，成功后下载 `DualWallpaperPicker-1.1-unsigned-<run number>` artifact，解压获取 `DualWallpaperPicker-1.1-unsigned.ipa`，通过 TrollStore 安装。工作流会检查模拟器启动、壁纸画布和下载逻辑、版本信息及 iOS 15 兼容元数据。
+
+Run **Build unsigned IPA** in GitHub Actions, download the artifact and extract the IPA for TrollStore installation. The workflow verifies simulator launch, canvas/download logic, version metadata and the iOS 15 deployment target.
+
 ## 中文介绍
 
 鱼头壁纸是一款面向 TrollStore 用户的 iPhone 壁纸选择与设置工具。
