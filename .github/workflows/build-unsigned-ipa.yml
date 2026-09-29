@@ -76,7 +76,7 @@ jobs:
           CONSOLE_PID=$!
           TESTS_READY=false
           for ATTEMPT in {1..60}; do
-            if grep -q 'WALLPAPER_CANVAS_TESTS_PASSED' "$LOG_PATH"; then
+            if grep -q 'WALLPAPER_CANVAS_TESTS_PASSED' "$LOG_PATH" && grep -q 'WALLPAPER_DOWNLOAD_TESTS_PASSED' "$LOG_PATH"; then
               TESTS_READY=true
               break
             fi
@@ -87,7 +87,7 @@ jobs:
           done
           if [ "$TESTS_READY" != true ]; then
             cat "$LOG_PATH"
-            echo "The app did not complete wallpaper canvas tests."
+            echo "The app did not complete wallpaper canvas and download tests."
             exit 1
           fi
           sleep 8
@@ -122,6 +122,9 @@ jobs:
           APP_PATH="$GITHUB_WORKSPACE/build/Build/Products/Release-iphoneos/DualWallpaperPicker.app"
           BINARY_PATH="$APP_PATH/DualWallpaperPicker"
           MINIMUM_OS="$(/usr/libexec/PlistBuddy -c 'Print :MinimumOSVersion' "$APP_PATH/Info.plist")"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP_PATH/Info.plist")" = "1.1"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP_PATH/Info.plist")" = "2"
+          /usr/libexec/PlistBuddy -c 'Print :NSPhotoLibraryAddUsageDescription' "$APP_PATH/Info.plist"
 
           echo "Info.plist MinimumOSVersion: $MINIMUM_OS"
           if [ "$MINIMUM_OS" != "15.0" ]; then
@@ -156,13 +159,13 @@ jobs:
           cp -R "$APP_PATH" "$GITHUB_WORKSPACE/ipa/Payload/"
 
           cd "$GITHUB_WORKSPACE/ipa"
-          zip -qry "$GITHUB_WORKSPACE/DualWallpaperPicker-unsigned.ipa" Payload
+          zip -qry "$GITHUB_WORKSPACE/DualWallpaperPicker-1.1-unsigned.ipa" Payload
 
       - name: Upload IPA
         uses: actions/upload-artifact@v5
         with:
-          name: DualWallpaperPicker-unsigned-${{ github.run_number }}
-          path: DualWallpaperPicker-unsigned.ipa
+          name: DualWallpaperPicker-1.1-unsigned-${{ github.run_number }}
+          path: DualWallpaperPicker-1.1-unsigned.ipa
           if-no-files-found: error
           compression-level: 0
           retention-days: 14
